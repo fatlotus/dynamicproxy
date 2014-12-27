@@ -14,6 +14,7 @@ import (
     "log"
     "bufio"
     "strings"
+    "io"
 )
 
 type backend struct {
@@ -88,17 +89,15 @@ func (p *dynamicProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             }
             
             // 4. Forward the response back to the client.
-            conn, bufrw, err := hj.Hijack()
-            if err != nil {
-                panic(err)
+            for key := range(response.Header) {
+                for _, value := range(response.Header[key]) {
+                    w.Header().Add(key, value)
+                }
             }
             
-            if err := response.Write(bufrw.Writer); err != nil {
-                log.Print(err)
-            }
+            w.WriteHeader(response.StatusCode)
             
-            bufrw.Flush()
-            conn.Close() // TODO(Add support for Keep-Alive)
+            io.Copy(w, response.Body)
         }
     }
 }
