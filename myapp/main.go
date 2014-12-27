@@ -2,7 +2,7 @@ package main
 
 import (
     "net/http"
-    "dynamicproxy"
+    "github.com/fatlotus/dynamicproxy"
 )
 
 func main() {
