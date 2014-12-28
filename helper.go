@@ -15,7 +15,12 @@ import (
     "crypto/tls"
     "crypto/x509"
     "io/ioutil"
+    "flag"
 )
+
+var cert = flag.String("dpcert", "", "What certificate for dynamic proxying.")
+var key = flag.String("dpkey", "", "What key to use for dynamic proxying.")
+var ca = flag.String("serverca", "", "Which server CA to use (default: system)")
 
 // A fake acceptor that returns just one socket
 type passthruListener struct {
@@ -46,12 +51,14 @@ func (l *passthruListener) Addr() net.Addr {
 
 // Creates a Listener that binds to the given URL.
 func BindURL(path string) (l net.Listener, e error) {
-    // TODO(Add support for HTTPS)
-    
     // 1. Validate the path to the server.
     parsed, err := url.Parse(path) 
     if err != nil {
         return nil, err
+    }
+    
+    if parsed.Scheme != "https" {
+        return nil, fmt.Errorf("Scheme %s is unsupported", parsed.Scheme)
     }
     
     // 2. Prepare a new request payload.
@@ -63,15 +70,12 @@ func BindURL(path string) (l net.Listener, e error) {
     req.Header.Set("Upgrade", "DynamicProxy")
     
     // 3. Add authentication details.
-    
-    //    (none, since this is just a demo)
-    
-    // 4. Send the request to the server.
     var conn net.Conn
+    var pool *x509.CertPool
     
-    if parsed.Scheme == "https" {
-        pool := x509.NewCertPool()
-        data, err := ioutil.ReadFile("server.crt")
+    if *ca != "" {
+        pool = x509.NewCertPool()
+        data, err := ioutil.ReadFile(*ca)
         if err != nil {
             return nil, err
         }
@@ -79,16 +83,31 @@ func BindURL(path string) (l net.Listener, e error) {
         if !pool.AppendCertsFromPEM(data) {
             return nil, fmt.Errorf("Unable to add certificates.")
         }
-        
-        conn, err = tls.Dial("tcp", parsed.Host, &tls.Config{
-            RootCAs: pool,
-        })
-    } else {
-        conn, err = net.Dial("tcp", parsed.Host)
     }
+    
+    var certs []tls.Certificate
+    
+    if *cert != "" && *key != "" {
+        cert, err := tls.LoadX509KeyPair(*cert, *key)
+        if err != nil {
+            return nil, err
+        }
+        
+        certs = []tls.Certificate{cert}
+    }
+    
+    // 4. Send the resulting request to the server.
+    conn, err = tls.Dial("tcp", parsed.Host, &tls.Config{
+        RootCAs: pool,
+        Certificates: certs,
+    })
     
     if err != nil {
         return nil, err
+    }
+    
+    if conn == nil {
+        return nil, fmt.Errorf("Conn is nil!")
     }
     
     req.Write(conn)

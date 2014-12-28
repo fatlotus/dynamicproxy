@@ -3,13 +3,17 @@ package main
 import (
     "net/http"
     "github.com/fatlotus/dynamicproxy"
+    "log"
+    "flag"
 )
 
 func main() {
-    listener, err := dynamicproxy.BindURL("https://localhost:8080")
+    flag.Parse()
+    
+    listener, err := dynamicproxy.BindURL("https://localhost:8080/app")
     
     if err != nil {
-        panic(err)
+        log.Fatal(err)
     }
     
     http.Serve(listener, http.FileServer(http.Dir(".")))

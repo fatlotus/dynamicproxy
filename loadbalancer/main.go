@@ -15,7 +15,16 @@ import (
     "bufio"
     "strings"
     "io"
+    "crypto/tls"
+    "crypto/x509"
+    "io/ioutil"
+    "net/url"
+    "flag"
 )
+
+var cert = flag.String("cert", "", "What certificate for SSL.")
+var key = flag.String("key", "", "What key to use for SSL.")
+var clientca = flag.String("clientca", "", "A CA to use for access control.")
 
 type backend struct {
     conn net.Conn
@@ -36,7 +45,24 @@ func (p *dynamicProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     if r.Header.Get("Upgrade") == "DynamicProxy" {
         // 1. Validate authentication details in the request.
         
-        //    (no authentication, since this is a demo)
+        allowed := false
+        
+        for _, cert := range(r.TLS.PeerCertificates) {
+            url, err := url.Parse(cert.Subject.CommonName)
+            if err == nil {
+                if url.Host == r.Host &&
+                   strings.HasPrefix(r.URL.Path, url.Path) {
+                    allowed = true
+                }
+            }
+        }
+        
+        if !allowed {
+            w.WriteHeader(401)
+            fmt.Fprintf(w, "Dynamic proxying not allowed.")
+            log.Print("Blocked attempt to proxy ", r.URL)
+            return
+        }
         
         // 2. Return 200 Success.
         
@@ -103,6 +129,43 @@ func (p *dynamicProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+    flag.Parse()
+    
     http.Handle("/", new(dynamicProxy))
-    log.Fatal(http.ListenAndServeTLS(":8080", "server.crt", "server.key", nil))
+    
+    var config *tls.Config 
+    
+    if *clientca != "" {
+        pool := x509.NewCertPool()
+        data, err := ioutil.ReadFile(*clientca)
+        if err != nil {
+            log.Fatal(err)
+        }
+    
+        if !pool.AppendCertsFromPEM(data) {
+            log.Fatal("Unable to add certificates.")
+        }
+        
+        config = &tls.Config{
+            ClientCAs: pool,
+            ClientAuth: tls.VerifyClientCertIfGiven,
+        }
+    } else {
+        config = &tls.Config{
+            ClientAuth: tls.RequestClientCert,
+        }
+        
+        log.Print("Warning: Client certificate verification disabled!")
+    }
+    
+    server := &http.Server{
+        Addr: ":8080",
+        TLSConfig: config,
+    }
+    
+    if *cert == "" || *key == "" {
+        log.Fatal("The cert and key options are required.")
+    }
+    
+    log.Fatal(server.ListenAndServeTLS(*cert, *key))
 }
