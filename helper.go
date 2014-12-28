@@ -12,6 +12,9 @@ import (
     "net/http"
     "bufio"
     "net/url"
+    "crypto/tls"
+    "crypto/x509"
+    "io/ioutil"
 )
 
 // A fake acceptor that returns just one socket
@@ -64,7 +67,26 @@ func BindURL(path string) (l net.Listener, e error) {
     //    (none, since this is just a demo)
     
     // 4. Send the request to the server.
-    conn, err := net.Dial("tcp", parsed.Host)
+    var conn net.Conn
+    
+    if parsed.Scheme == "https" {
+        pool := x509.NewCertPool()
+        data, err := ioutil.ReadFile("server.crt")
+        if err != nil {
+            return nil, err
+        }
+        
+        if !pool.AppendCertsFromPEM(data) {
+            return nil, fmt.Errorf("Unable to add certificates.")
+        }
+        
+        conn, err = tls.Dial("tcp", parsed.Host, &tls.Config{
+            RootCAs: pool,
+        })
+    } else {
+        conn, err = net.Dial("tcp", parsed.Host)
+    }
+    
     if err != nil {
         return nil, err
     }

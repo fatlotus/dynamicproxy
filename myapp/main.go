@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-    listener, err := dynamicproxy.BindURL("http://localhost:8080")
+    listener, err := dynamicproxy.BindURL("https://localhost:8080")
     
     if err != nil {
         panic(err)

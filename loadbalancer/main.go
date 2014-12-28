@@ -104,5 +104,5 @@ func (p *dynamicProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func main() {
     http.Handle("/", new(dynamicProxy))
-    log.Fatal(http.ListenAndServe(":8080", nil))
+    log.Fatal(http.ListenAndServeTLS(":8080", "server.crt", "server.key", nil))
 }
