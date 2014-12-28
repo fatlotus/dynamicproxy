@@ -8,6 +8,7 @@ import (
 )
 
 var bindurl = flag.String("bindurl", "", "Where to run this application.")
+var docroot = flag.String("docroot", "/var/www", "Which files to serve.")
 
 func main() {
     flag.Parse()
@@ -22,5 +23,5 @@ func main() {
         log.Fatal(err)
     }
     
-    http.Serve(listener, http.FileServer(http.Dir(".")))
+    http.Serve(listener, http.FileServer(http.Dir(*docroot)))
 }
