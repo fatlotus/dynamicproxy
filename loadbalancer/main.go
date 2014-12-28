@@ -20,6 +20,7 @@ import (
     "io/ioutil"
     "net/url"
     "flag"
+    "sync"
 )
 
 var cert = flag.String("cert", "", "What certificate for SSL.")
@@ -34,6 +35,7 @@ type backend struct {
 
 type dynamicProxy struct {
     backend *backend
+    mutex sync.Mutex
 }
 
 func (p *dynamicProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +43,10 @@ func (p *dynamicProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     if !ok {
         panic("Webserver does not support hijacking!")
     }
+    
+    // Avoid concurrent proxying, at least for now.
+    p.mutex.Lock()
+    defer p.mutex.Unlock()
     
     if r.Header.Get("Upgrade") == "DynamicProxy" {
         // 1. Validate authentication details in the request.
