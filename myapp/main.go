@@ -7,10 +7,16 @@ import (
     "flag"
 )
 
+var bindurl = flag.String("bindurl", "", "Where to run this application.")
+
 func main() {
     flag.Parse()
     
-    listener, err := dynamicproxy.BindURL("https://localhost:8080/app")
+    if *bindurl == "" {
+        log.Fatal("Parameter -bindurl is required.")
+    }
+    
+    listener, err := dynamicproxy.BindURL(*bindurl)
     
     if err != nil {
         log.Fatal(err)

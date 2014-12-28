@@ -26,6 +26,7 @@ import (
 var cert = flag.String("cert", "", "What certificate for SSL.")
 var key = flag.String("key", "", "What key to use for SSL.")
 var clientca = flag.String("clientca", "", "A CA to use for access control.")
+var bind = flag.String("bind", ":80", "Which address:port to bind on.")
 
 type backend struct {
     conn net.Conn
@@ -137,10 +138,12 @@ func (p *dynamicProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func main() {
     flag.Parse()
     
+    // Run the dynamic proxy on /.
     http.Handle("/", new(dynamicProxy))
     
     var config *tls.Config 
     
+    // Configure how we verify client certificates.
     if *clientca != "" {
         pool := x509.NewCertPool()
         data, err := ioutil.ReadFile(*clientca)
@@ -165,13 +168,15 @@ func main() {
     }
     
     server := &http.Server{
-        Addr: ":8080",
+        Addr: *bind,
         TLSConfig: config,
     }
     
+    // Configure TLS certificates.
     if *cert == "" || *key == "" {
         log.Fatal("The cert and key options are required.")
     }
     
+    log.Print("Listening on ", *bind)
     log.Fatal(server.ListenAndServeTLS(*cert, *key))
 }
